@@ -1,49 +1,82 @@
+// index.js
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
-require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const otpStore = {}; // Temporary OTP store (in-memory)
+// In‑memory OTP store (resets on cold starts / server restarts)
+const otpStore = {};
 
+// Hard‑coded credentials (not secure for public repos!)
+const EMAIL_USER = 'vigo1business@gmail.com';
+const EMAIL_PASS = 'gbbd vtdm rsrk qjks';
+
+// Create a reusable transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
   },
 });
 
-app.post('/send-otp', (req, res) => {
+// Send OTP endpoint
+app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
+  if (!email) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Missing `email` in request body.' });
+  }
+
+  // Generate and store OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   otpStore[email] = otp;
 
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'Vigo Admin OTP',
-    text: `Your OTP is ${otp}. It is valid for 2 minutes.`,
-  };
-
-  transporter.sendMail(mailOptions, (error) => {
-    if (error) return res.status(500).json({ success: false, error });
-    res.json({ success: true });
-  });
-});
-
-app.post('/verify-otp', (req, res) => {
-  const { email, otp } = req.body;
-  if (otpStore[email] === otp) {
-    delete otpStore[email];
-    res.json({ success: true });
-  } else {
-    res.json({ success: false });
+  try {
+    await transporter.sendMail({
+      from: EMAIL_USER,
+      to: email,
+      subject: 'Your OTP Code',
+      text: `Your one-time OTP is ${otp}. It expires in 2 minutes.`,
+    });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error('Error sending mail:', err);
+    return res
+      .status(500)
+      .json({ success: false, error: 'Failed to send OTP email.' });
   }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Verify OTP endpoint
+app.post('/verify-otp', (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Missing `email` or `otp`.' });
+  }
+
+  if (otpStore[email] === otp) {
+    delete otpStore[email];
+    return res.status(200).json({ success: true });
+  } else {
+    return res.status(200).json({ success: false, error: 'Invalid OTP.' });
+  }
+});
+
+// Start local server if run directly
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () =>
+    console.log(`Server listening on http://localhost:${PORT}`)
+  );
+}
+
+// Export for serverless (Vercel)
+// If you deploy to Vercel, rename this file to `api/index.js` (or link via vercel.json)
+module.exports = app;
