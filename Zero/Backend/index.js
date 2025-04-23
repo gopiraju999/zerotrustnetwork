@@ -25,6 +25,8 @@ const transporter = nodemailer.createTransport({
 
 // Send OTP endpoint
 app.post('/send-otp', async (req, res) => {
+
+  console.log("sending otp");
   const { email } = req.body;
   if (!email) {
     return res
