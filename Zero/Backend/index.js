@@ -4,7 +4,12 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "https://zerotrustnetwork.vercel.app",
+  })
+);
 app.use(express.json());
 
 // In‑memory OTP store (resets on cold starts / server restarts)
